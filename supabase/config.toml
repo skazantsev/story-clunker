@@ -1,7 +1,10 @@
-project_id = "bhxbuifwqezcbhxmfdkn"
+project_id = "drxuxfvrzlenobrxxzsx"
 
 [functions.generate-story]
 verify_jwt = true
 
 [functions.suggest-improvements]
 verify_jwt = true
+
+# Lovable Cloud
+# project_id = "bhxbuifwqezcbhxmfdkn"
