@@ -5,8 +5,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, ArrowLeft, Sparkles } from "lucide-react";
+import { Loader2, Send, ArrowLeft, Sparkles, Lightbulb } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface StorySegment {
   id: string;
@@ -33,6 +40,9 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [analyzingSegmentId, setAnalyzingSegmentId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string>("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const { toast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +177,49 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
     }
   };
 
+  const handleGetSuggestions = async (segmentId: string) => {
+    setAnalyzingSegmentId(segmentId);
+    try {
+      const { data, error } = await supabase.functions.invoke("suggest-improvements", {
+        body: { segmentId },
+      });
+
+      if (error) throw error;
+
+      setSuggestions(data.suggestions);
+      setShowSuggestions(true);
+      
+      toast({
+        title: "Suggestions ready!",
+        description: "Check out the AI's feedback on your writing.",
+      });
+    } catch (error: any) {
+      const errorMessage = error.message || "Failed to get suggestions";
+      
+      if (errorMessage.includes("Rate limit")) {
+        toast({
+          title: "Rate Limit",
+          description: "Please wait a moment before requesting more suggestions.",
+          variant: "destructive",
+        });
+      } else if (errorMessage.includes("credits")) {
+        toast({
+          title: "Credits Depleted",
+          description: "Please add credits to continue using AI features.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setAnalyzingSegmentId(null);
+    }
+  };
+
   if (isLoading || !story) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -201,13 +254,34 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
                   : "bg-card"
               }`}
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3 mb-3">
                 {segment.is_ai_generated && (
                   <Sparkles className="h-5 w-5 text-primary shrink-0 mt-1" />
                 )}
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap flex-1">
                   {segment.content}
                 </p>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleGetSuggestions(segment.id)}
+                  disabled={analyzingSegmentId === segment.id}
+                  className="text-xs"
+                >
+                  {analyzingSegmentId === segment.id ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Lightbulb className="h-3 w-3 mr-1" />
+                      Get Feedback
+                    </>
+                  )}
+                </Button>
               </div>
             </Card>
           ))}
@@ -249,6 +323,23 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
       <p className="text-xs text-muted-foreground mt-2 text-center">
         Press Ctrl+Enter to send
       </p>
+
+      <Dialog open={showSuggestions} onOpenChange={setShowSuggestions}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-primary" />
+              AI Writing Suggestions
+            </DialogTitle>
+            <DialogDescription>
+              Here are some tips to improve your story segment
+            </DialogDescription>
+          </DialogHeader>
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <div className="whitespace-pre-wrap text-sm">{suggestions}</div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
