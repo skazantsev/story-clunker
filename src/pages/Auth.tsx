@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, BookOpen } from "lucide-react";
+import { Loader2, BookOpen, Mail } from "lucide-react";
 import { z } from "zod";
 
 const authSchema = z.object({
@@ -18,6 +18,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -64,11 +65,7 @@ const Auth = () => {
 
         if (error) throw error;
 
-        toast({
-          title: "Account created!",
-          description: "You can now start creating stories.",
-        });
-        navigate("/");
+        setShowConfirmation(true);
       }
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -88,6 +85,37 @@ const Auth = () => {
       setIsLoading(false);
     }
   };
+
+  if (showConfirmation) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted to-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center space-y-4">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-primary to-accent rounded-2xl flex items-center justify-center">
+              <Mail className="w-8 h-8 text-primary-foreground" />
+            </div>
+            <CardTitle className="text-3xl font-bold">Check Your Email</CardTitle>
+            <CardDescription className="text-base">
+              We've sent a confirmation link to <span className="font-semibold text-foreground">{email}</span>. 
+              Please check your inbox and click the link to activate your account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setShowConfirmation(false);
+                setIsLogin(true);
+              }}
+            >
+              Back to Sign In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted to-background p-4">
