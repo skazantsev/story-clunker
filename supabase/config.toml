@@ -1,4 +1,4 @@
-project_id = "drxuxfvrzlenobrxxzsx"
+project_id = "bhxbuifwqezcbhxmfdkn"
 
 [functions.generate-story]
 verify_jwt = true
@@ -6,5 +6,8 @@ verify_jwt = true
 [functions.suggest-improvements]
 verify_jwt = true
 
-# Lovable Cloud
-# project_id = "bhxbuifwqezcbhxmfdkn"
+[functions.create-checkout]
+verify_jwt = false
+
+[functions.check-subscription]
+verify_jwt = false
