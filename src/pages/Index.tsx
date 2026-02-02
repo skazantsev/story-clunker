@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, PenTool, LogOut, Plus } from "lucide-react";
+import { Loader2, PenTool, LogOut, Plus, Crown } from "lucide-react";
 import StoryList from "@/components/StoryList";
 import StoryBuilder from "@/components/StoryBuilder";
 import NewStoryDialog from "@/components/NewStoryDialog";
 import { useToast } from "@/hooks/use-toast";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const Index = () => {
   const [user, setUser] = useState<any>(null);
@@ -15,10 +16,21 @@ const Index = () => {
   const [isNewStoryOpen, setIsNewStoryOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { subscribed, isLoading: subLoading, subscribe, refreshSubscription } = useSubscription(user?.id);
 
   useEffect(() => {
-    // Set up auth state listener
+    // Check for checkout success/cancel
+    if (searchParams.get("success") === "true") {
+      toast({ title: "Subscription successful!", description: "Welcome to Story Weaver Premium!" });
+      refreshSubscription();
+    } else if (searchParams.get("canceled") === "true") {
+      toast({ title: "Checkout canceled", variant: "destructive" });
+    }
+  }, [searchParams, toast, refreshSubscription]);
+
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       if (!session) {
@@ -26,7 +38,6 @@ const Index = () => {
       }
     });
 
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (!session) {
@@ -48,6 +59,14 @@ const Index = () => {
 
   const handleStoryCreated = () => {
     setRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleSubscribe = async () => {
+    try {
+      await subscribe();
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to start checkout", variant: "destructive" });
+    }
   };
 
   if (isLoading) {
@@ -78,10 +97,23 @@ const Index = () => {
               <p className="text-sm text-muted-foreground">AI-Powered Storytelling</p>
             </div>
           </div>
-          <Button variant="outline" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            {!subLoading && !subscribed && (
+              <Button onClick={handleSubscribe} variant="outline" className="border-primary text-primary">
+                <Crown className="h-4 w-4 mr-2" />
+                Subscribe $1/year
+              </Button>
+            )}
+            {subscribed && (
+              <span className="text-sm text-primary font-medium flex items-center gap-1">
+                <Crown className="h-4 w-4" /> Premium
+              </span>
+            )}
+            <Button variant="outline" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </header>
 
         {/* Main Content */}
