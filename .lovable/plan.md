@@ -1,41 +1,74 @@
 
-## Change Error Display from Toast to Inline Alert
+
+## Add "Research" Button with Firecrawl Integration
 
 ### Overview
-Replace the toast notification for ElevenLabs quota exceeded errors with a persistent inline alert displayed at the top of the story builder area.
+Add a "Research" button to each story segment that searches the web for real-world information related to the segment's content, displaying results in the inline alert.
+
+### Prerequisite
+Connect Firecrawl to the project via Settings > Connectors.
 
 ---
 
 ### Changes
 
-**1. Add Error State** (`src/components/StoryBuilder.tsx`)
-- Add new state: `narrationError: { title: string; message: string } | null`
-- Initialize as `null`
-
-**2. Update Error Handling**
-- In `handleNarrate`, instead of calling `toast()` for quota exceeded:
-  - Set `narrationError` state with title and message
-- Clear error when user dismisses it or starts a new narration
-
-**3. Add Inline Alert UI**
-- Import `Alert`, `AlertTitle`, `AlertDescription` from `@/components/ui/alert`
-- Import `AlertCircle` and `X` icons from lucide-react
-- Render alert below the header, above the ScrollArea:
+**1. Create Edge Function** (`supabase/functions/firecrawl-research/index.ts`)
+- Accept segment content as input
+- Use Lovable AI to extract a searchable topic from the content
+- Call Firecrawl search API with that topic
+- Handle quota exceeded errors with status 429 and structured response:
+  ```json
+  { "error": "quota_exceeded", "message": "Firecrawl API quota exceeded..." }
   ```
-  {narrationError && (
-    <Alert variant="destructive" className="mb-4">
-      <AlertCircle className="h-4 w-4" />
-      <AlertTitle>{narrationError.title}</AlertTitle>
-      <AlertDescription>{narrationError.message}</AlertDescription>
-      <Button variant="ghost" size="sm" onClick={() => setNarrationError(null)}>
-        <X className="h-4 w-4" />
-      </Button>
-    </Alert>
-  )}
-  ```
+- Return top 2-3 results formatted as a brief summary
+
+**2. Update StoryBuilder** (`src/components/StoryBuilder.tsx`)
+- Add `researchingSegmentId` state
+- Add `handleResearch(segmentId, content)` function:
+  - Clear existing alert
+  - Call edge function
+  - Check for `quota_exceeded` error and display as error alert
+  - Display results in success alert
+- Add "Research" button with `Globe` icon
 
 ---
 
-### User Experience
-- **Before**: Toast appears briefly in corner, easy to miss
-- **After**: Persistent alert banner at top of story area with dismiss button, clearly visible until user acknowledges
+### Error Handling Pattern (matching Narrate)
+
+Edge function quota handling:
+```text
+if (response.status === 429 || errorData.error?.includes('rate') || errorData.error?.includes('quota')) {
+  return Response with:
+    - status: 429
+    - body: { error: "quota_exceeded", message: "Firecrawl API quota exceeded. Please check your Firecrawl plan limits." }
+}
+```
+
+Frontend handling in `handleResearch`:
+```text
+if (errorData.error === "quota_exceeded") {
+  setInlineAlert({
+    type: 'error',
+    title: "API Quota Exceeded",
+    message: errorData.message
+  });
+  return;
+}
+```
+
+---
+
+### UI Addition
+New button in segment card (after "Get Feedback"):
+```text
+[Volume2] Narrate  |  [Lightbulb] Get Feedback  |  [Globe] Research
+```
+
+---
+
+### Example Flow
+1. User clicks "Research" on segment about "abandoned Mars colony"
+2. AI extracts topic: "Mars colonization plans"
+3. Firecrawl searches web
+4. Green alert shows: "NASA and SpaceX have outlined Mars colonization plans targeting the 2030s-2040s. Key challenges include radiation, food production, and return fuel."
+
