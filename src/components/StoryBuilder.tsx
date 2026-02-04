@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, ArrowLeft, Sparkles, Lightbulb } from "lucide-react";
+import { Loader2, Send, ArrowLeft, Sparkles, Lightbulb, Volume2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -43,6 +43,8 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
   const [analyzingSegmentId, setAnalyzingSegmentId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string>("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [narratingSegmentId, setNarratingSegmentId] = useState<string | null>(null);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -220,6 +222,56 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
     }
   };
 
+  const handleNarrate = async (segmentId: string, content: string) => {
+    // Stop any currently playing audio
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.src = "";
+      setCurrentAudio(null);
+    }
+
+    setNarratingSegmentId(segmentId);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/narrate-segment`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ text: content }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Narration failed: ${response.status}`);
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      
+      audio.onended = () => {
+        setNarratingSegmentId(null);
+        setCurrentAudio(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      setCurrentAudio(audio);
+      await audio.play();
+      
+    } catch (error: any) {
+      toast({
+        title: "Narration Error",
+        description: error.message || "Failed to narrate segment",
+        variant: "destructive",
+      });
+      setNarratingSegmentId(null);
+    }
+  };
+
   if (isLoading || !story) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -262,7 +314,26 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
                   {segment.content}
                 </p>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleNarrate(segment.id, segment.content)}
+                  disabled={narratingSegmentId === segment.id}
+                  className="text-xs"
+                >
+                  {narratingSegmentId === segment.id ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Playing...
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="h-3 w-3 mr-1" />
+                      Narrate
+                    </>
+                  )}
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
