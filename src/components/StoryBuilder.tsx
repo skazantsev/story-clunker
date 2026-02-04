@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, ArrowLeft, Sparkles, Lightbulb, Volume2, AlertCircle, CheckCircle, X } from "lucide-react";
+import { Loader2, Send, ArrowLeft, Sparkles, Lightbulb, Volume2, AlertCircle, CheckCircle, X, Globe } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -36,6 +36,7 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [analyzingSegmentId, setAnalyzingSegmentId] = useState<string | null>(null);
   const [narratingSegmentId, setNarratingSegmentId] = useState<string | null>(null);
+  const [researchingSegmentId, setResearchingSegmentId] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [inlineAlert, setInlineAlert] = useState<{ type: 'success' | 'error'; title: string; message: string } | null>(null);
   const { toast } = useToast();
@@ -287,6 +288,55 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
     }
   };
 
+  const handleResearch = async (segmentId: string, content: string) => {
+    setInlineAlert(null);
+    setResearchingSegmentId(segmentId);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/firecrawl-research`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ content }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.error === "quota_exceeded") {
+          setInlineAlert({
+            type: 'error',
+            title: "API Quota Exceeded",
+            message: data.message || "Firecrawl API quota exceeded. Please check your plan limits.",
+          });
+          setResearchingSegmentId(null);
+          return;
+        }
+        throw new Error(data.error || `Research failed: ${response.status}`);
+      }
+
+      setInlineAlert({
+        type: 'success',
+        title: `Research: "${data.query}"`,
+        message: data.summary,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Research Error",
+        description: error.message || "Failed to research topic",
+        variant: "destructive",
+      });
+    } finally {
+      setResearchingSegmentId(null);
+    }
+  };
+
   if (isLoading || !story) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -390,6 +440,25 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
                     <>
                       <Lightbulb className="h-3 w-3 mr-1" />
                       Get Feedback
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleResearch(segment.id, segment.content)}
+                  disabled={researchingSegmentId === segment.id}
+                  className="text-xs"
+                >
+                  {researchingSegmentId === segment.id ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Researching...
+                    </>
+                  ) : (
+                    <>
+                      <Globe className="h-3 w-3 mr-1" />
+                      Research
                     </>
                   )}
                 </Button>
