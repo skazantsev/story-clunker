@@ -5,6 +5,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Extract key words from content for search
+function extractSearchQuery(content: string): string {
+  // Take first 100 chars, remove special chars, limit to ~10 words
+  const cleaned = content
+    .slice(0, 200)
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  
+  const words = cleaned.split(" ").slice(0, 8);
+  return words.join(" ");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -28,55 +41,11 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "Lovable API key not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Step 1: Extract search topic using Lovable AI
-    console.log("Extracting search topic from content...");
-    const topicResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: "Extract a concise web search query (3-6 words) from the given story segment. Focus on real-world topics, facts, or concepts that could be researched. Return ONLY the search query, nothing else.",
-          },
-          { role: "user", content },
-        ],
-      }),
-    });
-
-    if (!topicResponse.ok) {
-      console.error("Lovable AI error:", topicResponse.status);
-      return new Response(
-        JSON.stringify({ error: "Failed to extract search topic" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const topicData = await topicResponse.json();
-    const searchQuery = topicData.choices?.[0]?.message?.content?.trim();
-
-    if (!searchQuery) {
-      return new Response(
-        JSON.stringify({ error: "Could not extract search topic" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
+    // Extract search query from content
+    const searchQuery = extractSearchQuery(content);
     console.log("Search query:", searchQuery);
 
-    // Step 2: Call Firecrawl search API
+    // Call Firecrawl search API
     const firecrawlResponse = await fetch("https://api.firecrawl.dev/v1/search", {
       method: "POST",
       headers: {
@@ -116,11 +85,11 @@ serve(async (req) => {
       );
     }
 
-    // Step 3: Format results into a brief summary
+    // Format results into a brief summary
     const results = firecrawlData.data || [];
     if (results.length === 0) {
       return new Response(
-        JSON.stringify({ summary: "No relevant research found for this topic." }),
+        JSON.stringify({ summary: "No relevant research found for this topic.", query: searchQuery }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
