@@ -5,7 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, ArrowLeft, Sparkles, Lightbulb, Volume2 } from "lucide-react";
+import { Loader2, Send, ArrowLeft, Sparkles, Lightbulb, Volume2, AlertCircle, X } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -45,6 +46,7 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [narratingSegmentId, setNarratingSegmentId] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  const [narrationError, setNarrationError] = useState<{ title: string; message: string } | null>(null);
   const { toast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -230,7 +232,10 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
       setCurrentAudio(null);
     }
 
+    // Clear any previous narration error
+    setNarrationError(null);
     setNarratingSegmentId(segmentId);
+    
     try {
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/narrate-segment`,
@@ -251,10 +256,9 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
         if (contentType?.includes("application/json")) {
           const errorData = await response.json();
           if (errorData.error === "quota_exceeded") {
-            toast({
+            setNarrationError({
               title: "Voice Credits Depleted",
-              description: errorData.message || "Your ElevenLabs account has run out of credits. Please add more credits to continue using narration.",
-              variant: "destructive",
+              message: errorData.message || "Your ElevenLabs account has run out of credits. Please add more credits to continue using narration.",
             });
             setNarratingSegmentId(null);
             return;
@@ -309,6 +313,24 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
           </Badge>
         </div>
       </div>
+
+      {narrationError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>{narrationError.title}</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>{narrationError.message}</span>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setNarrationError(null)}
+              className="h-6 w-6 p-0 ml-2 shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <ScrollArea className="flex-1 pr-4" ref={scrollRef}>
         <div className="space-y-4 pb-4">
