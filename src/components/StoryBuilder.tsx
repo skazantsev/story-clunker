@@ -246,6 +246,21 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
       );
 
       if (!response.ok) {
+        // Try to parse error response as JSON
+        const contentType = response.headers.get("content-type");
+        if (contentType?.includes("application/json")) {
+          const errorData = await response.json();
+          if (errorData.error === "quota_exceeded") {
+            toast({
+              title: "Voice Credits Depleted",
+              description: errorData.message || "Your ElevenLabs account has run out of credits. Please add more credits to continue using narration.",
+              variant: "destructive",
+            });
+            setNarratingSegmentId(null);
+            return;
+          }
+          throw new Error(errorData.message || `Narration failed: ${response.status}`);
+        }
         throw new Error(`Narration failed: ${response.status}`);
       }
 
