@@ -54,8 +54,25 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("ElevenLabs API error:", response.status, errorText);
+      
+      // Try to parse as JSON to check for quota_exceeded
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.detail?.status === "quota_exceeded") {
+          return new Response(
+            JSON.stringify({ 
+              error: "quota_exceeded", 
+              message: "Your ElevenLabs account has run out of credits. Please add more credits to continue using narration." 
+            }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } catch {
+        // Not JSON, fall through to generic error
+      }
+      
       return new Response(
-        JSON.stringify({ error: `ElevenLabs error: ${response.status}` }),
+        JSON.stringify({ error: "elevenlabs_error", message: `ElevenLabs error: ${response.status}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
