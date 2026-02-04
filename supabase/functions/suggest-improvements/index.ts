@@ -53,17 +53,9 @@ serve(async (req) => {
 
     console.log('Analyzing segment for improvements, genre:', genre);
 
-    const systemPrompt = `You are an expert creative writing coach. Analyze the provided story segment and suggest specific, actionable improvements. Focus on:
-- Narrative flow and pacing
-- Character development
-- Descriptive language and imagery
-- Dialogue quality (if present)
-- Genre-specific elements
-- Grammar and style
+    const systemPrompt = `You are an expert creative writing coach. Analyze the provided story segment and provide ONE brief, actionable suggestion in 1-2 sentences maximum. Focus on the most impactful improvement for narrative flow, character, imagery, or genre-specific elements.`;
 
-Provide 3-5 concrete suggestions that will enhance the writing quality.`;
-
-    const userPrompt = `Genre: ${genre}\n\nStory segment to analyze:\n\n${segment.content}\n\nProvide specific improvement suggestions:`;
+    const userPrompt = `Genre: ${genre}\n\nStory segment to analyze:\n\n${segment.content}\n\nProvide ONE brief suggestion (1-2 sentences max):`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
