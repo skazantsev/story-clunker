@@ -63,17 +63,23 @@ serve(async (req) => {
     if (!firecrawlResponse.ok) {
       console.error("Firecrawl API error:", firecrawlResponse.status, firecrawlData);
       
-      // Check for quota/rate limit errors
+      const errorMsg = firecrawlData.error?.toLowerCase() || "";
+      
+      // Check for quota/credit/rate limit errors (402 = Payment Required, 429 = Too Many Requests)
       if (
+        firecrawlResponse.status === 402 ||
         firecrawlResponse.status === 429 ||
-        firecrawlData.error?.toLowerCase().includes("rate") ||
-        firecrawlData.error?.toLowerCase().includes("quota") ||
-        firecrawlData.error?.toLowerCase().includes("limit")
+        errorMsg.includes("credit") ||
+        errorMsg.includes("rate") ||
+        errorMsg.includes("quota") ||
+        errorMsg.includes("limit")
       ) {
         return new Response(
           JSON.stringify({
             error: "quota_exceeded",
-            message: "Firecrawl API quota exceeded. Please check your Firecrawl plan limits.",
+            message: firecrawlResponse.status === 402 
+              ? "Firecrawl credits depleted. Please upgrade your plan at firecrawl.dev/pricing."
+              : "Firecrawl API rate limit reached. Please try again later.",
           }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
