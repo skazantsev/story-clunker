@@ -5,16 +5,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, ArrowLeft, Sparkles, Lightbulb, Volume2, AlertCircle, X } from "lucide-react";
+import { Loader2, Send, ArrowLeft, Sparkles, Lightbulb, Volume2, AlertCircle, CheckCircle, X } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 interface StorySegment {
   id: string;
@@ -42,11 +35,9 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [analyzingSegmentId, setAnalyzingSegmentId] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<string>("");
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [narratingSegmentId, setNarratingSegmentId] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
-  const [narrationError, setNarrationError] = useState<{ title: string; message: string } | null>(null);
+  const [inlineAlert, setInlineAlert] = useState<{ type: 'success' | 'error'; title: string; message: string } | null>(null);
   const { toast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -183,6 +174,7 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
 
   const handleGetSuggestions = async (segmentId: string) => {
     setAnalyzingSegmentId(segmentId);
+    setInlineAlert(null);
     try {
       const { data, error } = await supabase.functions.invoke("suggest-improvements", {
         body: { segmentId },
@@ -190,27 +182,25 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
 
       if (error) throw error;
 
-      setSuggestions(data.suggestions);
-      setShowSuggestions(true);
-      
-      toast({
-        title: "Suggestions ready!",
-        description: "Check out the AI's feedback on your writing.",
+      setInlineAlert({
+        type: 'success',
+        title: "Writing Feedback",
+        message: data.suggestions,
       });
     } catch (error: any) {
       const errorMessage = error.message || "Failed to get suggestions";
       
       if (errorMessage.includes("Rate limit")) {
-        toast({
+        setInlineAlert({
+          type: 'error',
           title: "Rate Limit",
-          description: "Please wait a moment before requesting more suggestions.",
-          variant: "destructive",
+          message: "Please wait a moment before requesting more suggestions.",
         });
       } else if (errorMessage.includes("credits")) {
-        toast({
+        setInlineAlert({
+          type: 'error',
           title: "Credits Depleted",
-          description: "Please add credits to continue using AI features.",
-          variant: "destructive",
+          message: "Please add credits to continue using AI features.",
         });
       } else {
         toast({
@@ -232,8 +222,8 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
       setCurrentAudio(null);
     }
 
-    // Clear any previous narration error
-    setNarrationError(null);
+    // Clear any previous alert
+    setInlineAlert(null);
     setNarratingSegmentId(segmentId);
     
     try {
@@ -256,7 +246,8 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
         if (contentType?.includes("application/json")) {
           const errorData = await response.json();
           if (errorData.error === "quota_exceeded") {
-            setNarrationError({
+            setInlineAlert({
+              type: 'error',
               title: "Voice Credits Depleted",
               message: errorData.message || "Your ElevenLabs account has run out of credits. Please add more credits to continue using narration.",
             });
@@ -276,6 +267,11 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
         setNarratingSegmentId(null);
         setCurrentAudio(null);
         URL.revokeObjectURL(audioUrl);
+        setInlineAlert({
+          type: 'success',
+          title: "Narration Complete",
+          message: "Audio playback finished successfully.",
+        });
       };
       
       setCurrentAudio(audio);
@@ -314,16 +310,23 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
         </div>
       </div>
 
-      {narrationError && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>{narrationError.title}</AlertTitle>
+      {inlineAlert && (
+        <Alert 
+          variant={inlineAlert.type === 'error' ? 'destructive' : 'default'} 
+          className={`mb-4 ${inlineAlert.type === 'success' ? 'border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400 [&>svg]:text-green-600' : ''}`}
+        >
+          {inlineAlert.type === 'error' ? (
+            <AlertCircle className="h-4 w-4" />
+          ) : (
+            <CheckCircle className="h-4 w-4" />
+          )}
+          <AlertTitle>{inlineAlert.title}</AlertTitle>
           <AlertDescription className="flex items-center justify-between">
-            <span>{narrationError.message}</span>
+            <span>{inlineAlert.message}</span>
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => setNarrationError(null)}
+              onClick={() => setInlineAlert(null)}
               className="h-6 w-6 p-0 ml-2 shrink-0"
             >
               <X className="h-4 w-4" />
@@ -432,22 +435,6 @@ const StoryBuilder = ({ storyId, onBack }: StoryBuilderProps) => {
         Press Ctrl+Enter to send
       </p>
 
-      <Dialog open={showSuggestions} onOpenChange={setShowSuggestions}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lightbulb className="h-5 w-5 text-primary" />
-              AI Writing Suggestions
-            </DialogTitle>
-            <DialogDescription>
-              Here are some tips to improve your story segment
-            </DialogDescription>
-          </DialogHeader>
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <div className="whitespace-pre-wrap text-sm">{suggestions}</div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
