@@ -1,48 +1,41 @@
 
-## Handle ElevenLabs Quota Exceeded Error
+## Change Error Display from Toast to Inline Alert
 
-### Problem
-When ElevenLabs returns a quota exceeded error (401 with `quota_exceeded` status), the user sees a generic "Narration failed: 500" message instead of a helpful explanation.
-
-### Solution
-Add proper error parsing and user-friendly messaging for the quota exceeded case.
+### Overview
+Replace the toast notification for ElevenLabs quota exceeded errors with a persistent inline alert displayed at the top of the story builder area.
 
 ---
 
 ### Changes
 
-**1. Update Edge Function** (`supabase/functions/narrate-segment/index.ts`)
-- Parse the ElevenLabs error response JSON
-- Detect the `quota_exceeded` status specifically
-- Return a 429 status with a clear error type and message
+**1. Add Error State** (`src/components/StoryBuilder.tsx`)
+- Add new state: `narrationError: { title: string; message: string } | null`
+- Initialize as `null`
 
-**2. Update Client** (`src/components/StoryBuilder.tsx`)
-- Check for JSON error responses from the edge function
-- Display a specific toast message when quota is exceeded
-- Guide user that ElevenLabs credits need to be added
+**2. Update Error Handling**
+- In `handleNarrate`, instead of calling `toast()` for quota exceeded:
+  - Set `narrationError` state with title and message
+- Clear error when user dismisses it or starts a new narration
 
----
-
-### Technical Details
-
-Edge function error handling (lines 54-61):
-```text
-- Parse errorText as JSON
-- Check for detail.status === "quota_exceeded"
-- Return { error: "quota_exceeded", message: "..." } with status 429
-- Fall back to generic error for other cases
-```
-
-Client error handling in `handleNarrate`:
-```text
-- Try to parse error response as JSON
-- Check for error === "quota_exceeded"
-- Show specific toast: "Voice Credits Depleted" with message to add ElevenLabs credits
-- Fall back to generic error toast
-```
+**3. Add Inline Alert UI**
+- Import `Alert`, `AlertTitle`, `AlertDescription` from `@/components/ui/alert`
+- Import `AlertCircle` and `X` icons from lucide-react
+- Render alert below the header, above the ScrollArea:
+  ```
+  {narrationError && (
+    <Alert variant="destructive" className="mb-4">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>{narrationError.title}</AlertTitle>
+      <AlertDescription>{narrationError.message}</AlertDescription>
+      <Button variant="ghost" size="sm" onClick={() => setNarrationError(null)}>
+        <X className="h-4 w-4" />
+      </Button>
+    </Alert>
+  )}
+  ```
 
 ---
 
 ### User Experience
-- **Before**: "Narration Error - Narration failed: 500"
-- **After**: "Voice Credits Depleted - Your ElevenLabs account has run out of credits. Please add more credits to continue using narration."
+- **Before**: Toast appears briefly in corner, easy to miss
+- **After**: Persistent alert banner at top of story area with dismiss button, clearly visible until user acknowledges
